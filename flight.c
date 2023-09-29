@@ -87,11 +87,11 @@ void update(float acc_x, float acc_y, float acc_z, float gyro_x, float gyro_y,fl
         eulerAngles(q_est, &roll, &pitch, &yaw);
 
         counter++;
-        
+
         return;
     }
 
-    // During other iterarions the data are processed to make estimations about flight state.
+    // During other iterations data is processed to make estimations about flight state.
     
     float filter_weight = 0.06;    // Filter weight for EWMA.
     float acc_magn;
