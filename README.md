@@ -7,7 +7,7 @@ First, an [Esponential Weighted Moving Average (EWMA)](https://en.wikipedia.org/
 Then the altitude is estimated thanks to the data provided by the barometer through the [international barometric formula](https://en.wikipedia.org/wiki/Barometric_formula), thanks to these data a numerical derivative of the altitude is calculated to know the value of the speed on the vertical axis. 
 Finally, the [Madgwick filter](https://ahrs.readthedocs.io/en/latest/filters/madgwick.html) for sensor fusion is applied to the gyroscope and accelerometer data to know the rocket attitude. (thanks to [bjohnsonfl](https://github.com/bjohnsonfl/Madgwick_Filter) for the implementation)
 
-Thanks to all this data, the flight phases are identified:
+Thanks to all these data, the flight phases are identified:
 at the moment of liftoff a large acceleration on the vertical axis, given by the thrust of the engines, is detected by the accelerometer;
 at the moment of the apogee there will be a point of inversion of the velocity which will therefore be around 0, the acceleration on the vertical axis will certainly be negative, but the problem at this point of the flight is to determine which is the vertical axis since, given that the thrust of the engines has ended, the rocket will no longer have the same orientation as at liftoff, therefore pitch and yaw data are used to understand the apogee position;
 at the moment of landing the velocity will again be around 0, the magnitude of the acceleration vector will be around G and, since we assume that the rocket lands horizontally braked by a parachute, the vertical component of the acceleration detected by the accelerometer will be almost zero.
@@ -41,6 +41,9 @@ The simulation file is in the main folder named 'sim.csv', replace this file to 
 In the main folder there is a python script to visualize better data with graphs. (make sure to have python installed)
 
 ```bash
-# After simulation go back in the main folder and run the script
+ # After simulation go back in the main folder and run the script
+ cd ..
+
+ # Run the script
  python3 graphs.py
  ```
