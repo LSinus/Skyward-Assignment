@@ -85,82 +85,84 @@ void update(float acc_x, float acc_y, float acc_z, float gyro_x, float gyro_y,fl
         // Madgwick filter.
         imu_filter(acc_y, acc_x, acc_z, gyro_x, gyro_y, gyro_z);
         eulerAngles(q_est, &roll, &pitch, &yaw);
+
+        counter++;
+        
+        return;
     }
 
     // During other iterarions the data are processed to make estimations about flight state.
-    else{
+    
+    float filter_weight = 0.06;    // Filter weight for EWMA.
+    float acc_magn;
 
-        float filter_weight = 0.06;    // Filter weight for EWMA.
-        float acc_magn;
+    // Altitude estimation.
+    altitude = filter_data(get_altitude_from_pressure(baro), prev_altitude, filter_weight);
 
-        // Altitude estimation.
-        altitude = filter_data(get_altitude_from_pressure(baro), prev_altitude, filter_weight);
+    // Vertical veloctiy estimation.
+    vel_x = get_vel(altitude, prev_altitude);
 
-        // Vertical veloctiy estimation.
-        vel_x = get_vel(altitude, prev_altitude);
+    filter_weight = 0.08;    // The weight is changed in order to reduce the impact of the filter because accelerometer and gyroscope data are directly read from a device.
 
-        filter_weight = 0.08;    // The weight is changed in order to reduce the impact of the filter because accelerometer and gyroscope data are directly read from a device.
+    // Accelerometer data filtering.
+    acc_x = filter_data(acc_x, prev_acc.x, filter_weight);
+    acc_y = filter_data(acc_y, prev_acc.y, filter_weight);
+    acc_z = filter_data(acc_z, prev_acc.z, filter_weight);
 
-        // Accelerometer data filtering.
-        acc_x = filter_data(acc_x, prev_acc.x, filter_weight);
-        acc_y = filter_data(acc_y, prev_acc.y, filter_weight);
-        acc_z = filter_data(acc_z, prev_acc.z, filter_weight);
+    // Gyroscope data filtering.
+    gyro_x = filter_data(gyro_x, prev_gyro.x, filter_weight);
+    gyro_y = filter_data(gyro_y, prev_gyro.y, filter_weight);
+    gyro_z = filter_data(gyro_z, prev_gyro.z, filter_weight);
 
-        // Gyroscope data filtering.
-        gyro_x = filter_data(gyro_x, prev_gyro.x, filter_weight);
-        gyro_y = filter_data(gyro_y, prev_gyro.y, filter_weight);
-        gyro_z = filter_data(gyro_z, prev_gyro.z, filter_weight);
+    // Acceleration vector magnitude.
+    acc_magn = vec_magn(acc_x, acc_y, acc_z);
 
-        // Acceleration vector magnitude.
-        acc_magn = vec_magn(acc_x, acc_y, acc_z);
+    // Madgwick filter.
+    imu_filter(acc_y, acc_x, acc_z, gyro_x, gyro_y, gyro_z);
+    eulerAngles(q_est, &roll, &pitch, &yaw);
 
-        // Madgwick filter.
-        imu_filter(acc_y, acc_x, acc_z, gyro_x, gyro_y, gyro_z);
-        eulerAngles(q_est, &roll, &pitch, &yaw);
+    // Flight state datection
 
-        // Flight state datection
+    // -  At the moment of liftoff a large acceleration given by the thrust of the engines is detected by the accelerometer on the x axis.
+    if(acc_x > (G + NOISE) && flight_state == STATE_INIT) {     
+        flight_state = STATE_FLIGHT;
+        liftoff();
+    } 
 
-        // -  At the moment of liftoff a large acceleration given by the thrust of the engines is detected by the accelerometer on the x axis.
-        if(acc_x > (G + NOISE) && flight_state == STATE_INIT) {     
-            flight_state = STATE_FLIGHT;
-            liftoff();
-        } 
-
-        // -  At the moment of the apogee there will be a point of inversion of the velocity which will therefore be around 0, 
-        //    furthermore, any linear combination of pitch and yaw values ​​is checked by checking that at least one of the values ​​is greater than 45 degrees or less than -45 degrees with respect to the starting position, 
-        //    i.e. the orientation of the rocket is no longer that of the ascent.
-        else if(vel_x > 0 - NOISE && vel_x < 0 + NOISE && (yaw > 45 || yaw < -45 || pitch > 45 || pitch < -45) && flight_state == STATE_FLIGHT) {   
-            flight_state = STATE_DESCENT;
-            apogee();
-        }
-
-        // -  At the moment of landing the velocity will again be around 0, 
-        //    the magnitude of the acceleration vector will be around G and, since we assume that the rocket lands horizontally braked by a parachute, 
-        //    the vertical component of the acceleration detected by the accelerometer will be almost zero.
-        else if(vel_x < 0 + NOISE && acc_magn < G + NOISE && acc_magn > G - NOISE && acc_x < 0 + NOISE && flight_state == STATE_DESCENT) {
-
-            flight_state = STATE_LANDED;
-            landed();
-
-            fclose(fp);
-
-            printf("\n+-------------------------------------------------------+\n");
-            printf("|                                                       |\n");
-            printf("|  Flight graphs generated, run graphs.py to show them  |\n");
-            printf("|                                                       |\n");
-            printf("+-------------------------------------------------------+\n\n");
-        }
-
-        // In this section all prev_values are updated for the next cycle.
-        prev_altitude = altitude;
-        prev_vel_x = vel_x;
-
-        prev_acc = update_struct(acc_x, acc_y, acc_z);
-        prev_gyro = update_struct(gyro_x, gyro_y, gyro_z);
-
-        fprintf(fp, "%f,%f,%f,%f,%f,%f,%f\n", counter * DELTA_T, altitude, acc_x, vel_x, roll, pitch, yaw);
+    // -  At the moment of the apogee there will be a point of inversion of the velocity which will therefore be around 0, 
+    //    furthermore, any linear combination of pitch and yaw values ​​is checked by checking that at least one of the values ​​is greater than 45 degrees or less than -45 degrees with respect to the starting position, 
+    //    i.e. the orientation of the rocket is no longer that of the ascent.
+    else if(vel_x > 0 - NOISE && vel_x < 0 + NOISE && (yaw > 45 || yaw < -45 || pitch > 45 || pitch < -45) && flight_state == STATE_FLIGHT) {   
+        flight_state = STATE_DESCENT;
+        apogee();
     }
 
+    // -  At the moment of landing the velocity will again be around 0, 
+    //    the magnitude of the acceleration vector will be around G and, since we assume that the rocket lands horizontally braked by a parachute, 
+    //    the vertical component of the acceleration detected by the accelerometer will be almost zero.
+    else if(vel_x < 0 + NOISE && acc_magn < G + NOISE && acc_magn > G - NOISE && acc_x < 0 + NOISE && flight_state == STATE_DESCENT) {
+
+        flight_state = STATE_LANDED;
+        landed();
+
+        fclose(fp);
+
+        printf("\n+-------------------------------------------------------+\n");
+        printf("|                                                       |\n");
+        printf("|  Flight graphs generated, run graphs.py to show them  |\n");
+        printf("|                                                       |\n");
+        printf("+-------------------------------------------------------+\n\n");
+    }
+
+    // In this section all prev_values are updated for the next cycle.
+    prev_altitude = altitude;
+    prev_vel_x = vel_x;
+
+    prev_acc = update_struct(acc_x, acc_y, acc_z);
+    prev_gyro = update_struct(gyro_x, gyro_y, gyro_z);
+
+    fprintf(fp, "%f,%f,%f,%f,%f,%f,%f\n", counter * DELTA_T, altitude, acc_x, vel_x, roll, pitch, yaw);
+    
     counter++;
 }
 
